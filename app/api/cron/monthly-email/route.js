@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
 import ExcelJS from "exceljs";
 import nodemailer from "nodemailer";
-import { ensureSchema, rowToExpense } from "@/lib/db";
+import { sql, ensureSchema, rowToExpense } from "@/lib/db";
 import { categoryName } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
