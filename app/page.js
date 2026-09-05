@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSession, signIn, signOut } from "next-auth/react";
 import { CATEGORIES, CATEGORY_BY_ID } from "@/lib/categories";
 
 const MONTH_NAMES = [
@@ -19,6 +20,35 @@ function fmt2(n) {
 }
 
 export default function Home() {
+  const { data: session, status } = useSession();
+
+  if (status === "loading") {
+    return (
+      <div className="app">
+        <p className="status-note">Loading…</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="app signin-screen">
+        <div className="wordmark">Ledger<span>line</span></div>
+        <p className="signin-copy">
+          Track your expenses, monthly totals, and category breakdowns —
+          sign in to see your own ledger.
+        </p>
+        <button className="btn primary" onClick={() => signIn("google")}>
+          Sign in with Google
+        </button>
+      </div>
+    );
+  }
+
+  return <Tracker session={session} />;
+}
+
+function Tracker({ session }) {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -137,6 +167,12 @@ export default function Home() {
           <button aria-label="Next month" onClick={() => shiftMonth(1)}>&#8250;</button>
         </div>
       </header>
+
+      <div className="account-row">
+        {session.user.image && <img className="account-avatar" src={session.user.image} alt="" />}
+        <span className="account-name">{session.user.name || session.user.email}</span>
+        <button className="signout-link" onClick={() => signOut()}>Sign out</button>
+      </div>
 
       <div className="total-tile">
         <span className="label">Spent this month</span>

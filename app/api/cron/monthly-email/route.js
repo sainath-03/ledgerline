@@ -17,7 +17,7 @@ function money(n) {
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-async function buildWorkbook(expenses, monthLabel) {
+async function buildWorkbook(expenses) {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Ledgerline";
   wb.created = new Date();
@@ -76,18 +76,20 @@ async function buildWorkbook(expenses, monthLabel) {
   return { buffer: await wb.xlsx.writeBuffer(), total, byCat };
 }
 
-async function sendEmail({ subject, text, attachment }) {
-  const transporter = nodemailer.createTransport({
+function getTransporter() {
+  return nodemailer.createTransport({
     service: "gmail",
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_APP_PASSWORD
     }
   });
+}
 
+async function sendEmail(transporter, { to, subject, text, attachment }) {
   await transporter.sendMail({
     from: `Ledgerline <${process.env.GMAIL_USER}>`,
-    to: process.env.EMAIL_TO || process.env.GMAIL_USER,
+    to,
     subject,
     text,
     attachments: attachment
@@ -116,54 +118,76 @@ export async function GET(request) {
 
   await ensureSchema();
 
+  const usersResult = await sql`SELECT email, name FROM app_users ORDER BY email;`;
+  const users = usersResult.rows;
+
+  if (users.length === 0) {
+    return NextResponse.json({ sent: 0, reason: "no registered users yet" });
+  }
+
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
   const start = `${year}-${String(month).padStart(2, "0")}-01`;
-  const result = await sql`
-    SELECT * FROM expenses
-    WHERE expense_date >= ${start}::date
-      AND expense_date < (${start}::date + INTERVAL '1 month')
-      AND example = FALSE
-    ORDER BY expense_date ASC;
-  `;
-  const expenses = result.rows.map(rowToExpense);
-
   const monthLabel = now.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
-  if (expenses.length === 0) {
-    await sendEmail({
-      subject: `Ledgerline — ${monthLabel} expense summary`,
-      text: `No expenses were logged in Ledgerline for ${monthLabel}.`
-    });
-    return NextResponse.json({ sent: true, entries: 0 });
+  const transporter = getTransporter();
+  const results = [];
+
+  for (const user of users) {
+    try {
+      const result = await sql`
+        SELECT * FROM expenses
+        WHERE user_email = ${user.email}
+          AND expense_date >= ${start}::date
+          AND expense_date < (${start}::date + INTERVAL '1 month')
+          AND example = FALSE
+        ORDER BY expense_date ASC;
+      `;
+      const expenses = result.rows.map(rowToExpense);
+
+      if (expenses.length === 0) {
+        await sendEmail(transporter, {
+          to: user.email,
+          subject: `Ledgerline — ${monthLabel} expense summary`,
+          text: `No expenses were logged in Ledgerline for ${monthLabel}.`
+        });
+        results.push({ email: user.email, entries: 0 });
+        continue;
+      }
+
+      const { buffer, total, byCat } = await buildWorkbook(expenses);
+
+      const topCats = Object.entries(byCat)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 2)
+        .map(([catId, amount]) => `${categoryName(catId)} (${money(amount)})`)
+        .join(", ");
+
+      const text = [
+        `Here's your Ledgerline summary for ${monthLabel}.`,
+        "",
+        `Total spent: ${money(total)}`,
+        `Entries logged: ${expenses.length}`,
+        `Top categories: ${topCats}`,
+        "",
+        "The full breakdown is attached as an Excel file."
+      ].join("\n");
+
+      await sendEmail(transporter, {
+        to: user.email,
+        subject: `Ledgerline — ${monthLabel} expense summary`,
+        text,
+        attachment: {
+          filename: `Ledgerline-${monthLabel.replace(" ", "-")}.xlsx`,
+          buffer: Buffer.from(buffer)
+        }
+      });
+      results.push({ email: user.email, entries: expenses.length, total });
+    } catch (err) {
+      console.error(`Failed to email ${user.email}`, err);
+      results.push({ email: user.email, error: String(err) });
+    }
   }
 
-  const { buffer, total, byCat } = await buildWorkbook(expenses, monthLabel);
-
-  const topCats = Object.entries(byCat)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 2)
-    .map(([catId, amount]) => `${categoryName(catId)} (${money(amount)})`)
-    .join(", ");
-
-  const text = [
-    `Here's your Ledgerline summary for ${monthLabel}.`,
-    "",
-    `Total spent: ${money(total)}`,
-    `Entries logged: ${expenses.length}`,
-    `Top categories: ${topCats}`,
-    "",
-    "The full breakdown is attached as an Excel file."
-  ].join("\n");
-
-  await sendEmail({
-    subject: `Ledgerline — ${monthLabel} expense summary`,
-    text,
-    attachment: {
-      filename: `Ledgerline-${monthLabel.replace(" ", "-")}.xlsx`,
-      buffer: Buffer.from(buffer)
-    }
-  });
-
-  return NextResponse.json({ sent: true, entries: expenses.length, total });
+  return NextResponse.json({ sent: results.length, results });
 }
