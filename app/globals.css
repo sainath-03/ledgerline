@@ -101,12 +101,12 @@ section.card { background: var(--surface); border-radius: var(--radius); box-sha
 .day-group .txn:first-of-type { border-top: none; }
 .txn-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
 .txn-main { flex: 1; min-width: 0; }
-.txn-note { font-size: 0.94rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.txn-note { display: block; font-size: 0.94rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .txn-cat { font-size: 0.78rem; color: var(--muted); }
-.txn-amount { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-weight: 600; }
+.txn-amount { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
 .txn-example { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); background: var(--surface-2); border-radius: 5px; padding: 1px 5px; margin-left: 6px; }
 .txn-del {
-  all: unset; cursor: pointer; color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 4px 6px; border-radius: 6px;
+  all: unset; cursor: pointer; color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 4px 6px; border-radius: 6px; flex-shrink: 0;
 }
 .txn-del:hover, .txn-del:focus-visible { color: var(--danger); background: var(--surface-2); }
 .txn-del:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
