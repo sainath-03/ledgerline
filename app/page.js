@@ -16,8 +16,7 @@ const MONTH_NAMES = [
 const GMAIL_SCOPE = "openid email profile https://www.googleapis.com/auth/gmail.readonly";
 
 function pad(n) { return n < 10 ? `0${n}` : `${n}`; }
-function todayStr() {
-  const d = new Date();
+function todayStr(d = new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 function fmt(n) { return `₹${Math.round(n).toLocaleString("en-IN")}`; }
@@ -72,6 +71,7 @@ function Tracker({ session }) {
   const [pendingBusyId, setPendingBusyId] = useState(null);
   const [reviewingId, setReviewingId] = useState(null); // pending suggestion id being edited, or null for a plain new expense
   const [expandedDay, setExpandedDay] = useState(undefined); // undefined = not yet interacted -> defaults to the most recent day
+  const [daysToShow, setDaysToShow] = useState(8); // how many day-groups render before "Show earlier days"
 
   async function refresh() {
     try {
@@ -182,6 +182,8 @@ function Tracker({ session }) {
   const byDay = {};
   inView.forEach((t) => { (byDay[t.date] = byDay[t.date] || []).push(t); });
   const days = Object.keys(byDay).sort().reverse();
+  const visibleDays = days.slice(0, daysToShow);
+  const moreDaysCount = days.length - visibleDays.length;
 
   function toggleDay(day) {
     setExpandedDay((current) => {
@@ -198,6 +200,8 @@ function Tracker({ session }) {
       if (month > 11) { month = 0; year += 1; }
       return { year, month };
     });
+    setDaysToShow(8);
+    setExpandedDay(undefined);
   }
 
   async function deleteExpense(id) {
@@ -370,16 +374,22 @@ function Tracker({ session }) {
       </section>
 
       <section className="card">
-        <h2>Transactions</h2>
+        <div className="card-heading-row">
+          <h2>Transactions</h2>
+          {inView.length > 0 && <span className="card-heading-count">{inView.length}</span>}
+        </div>
         {days.length === 0 ? (
           <p className="empty-note">Tap the + button to log your first expense.</p>
         ) : (
-          days.map((day) => {
+          visibleDays.map((day) => {
             const items = byDay[day];
             const dayTotal = items.reduce((s, t) => s + t.amount, 0);
             const dt = new Date(`${day}T00:00:00`);
+            const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
             const label = day === todayStr()
               ? "Today"
+              : day === todayStr(yesterday)
+              ? "Yesterday"
               : dt.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
             const isOpen = (expandedDay === undefined ? days[0] : expandedDay) === day;
             return (
@@ -392,7 +402,7 @@ function Tracker({ session }) {
                   onClick={() => toggleDay(day)}
                   onKeyDown={(e) => { if (e.key === "Enter") toggleDay(day); }}
                 >
-                  <span className="day-chevron">{isOpen ? "▾" : "▸"}</span>
+                  <span className="day-chevron">▸</span>
                   <span>{label}</span>
                   <span className="day-total">{fmt(dayTotal)}</span>
                 </div>
@@ -416,6 +426,11 @@ function Tracker({ session }) {
               </div>
             );
           })
+        )}
+        {moreDaysCount > 0 && (
+          <button className="show-more-btn" onClick={() => setDaysToShow((n) => n + 8)}>
+            Show earlier days &middot; {moreDaysCount} more
+          </button>
         )}
       </section>
 

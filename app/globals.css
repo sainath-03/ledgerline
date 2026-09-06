@@ -90,7 +90,9 @@ header.top { display: flex; align-items: baseline; justify-content: space-betwee
 .total-tile .sub b { color: var(--ink); font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-weight: 600; }
 
 section.card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
-.card h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin: 0 0 14px; }
+.card h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin: 0; }
+.card-heading-row { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; }
+.card-heading-count { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted); background: var(--surface-2); border-radius: 999px; padding: 1px 8px; }
 
 .cat-row { display: grid; grid-template-columns: 14px 1fr auto; align-items: center; gap: 10px; padding: 7px 0; }
 .cat-dot { width: 10px; height: 10px; border-radius: 3px; }
@@ -103,15 +105,27 @@ section.card { background: var(--surface); border-radius: var(--radius); box-sha
 
 .empty-note { color: var(--muted); font-size: 0.88rem; text-align: center; padding: 8px 0; }
 
-.day-group { display: flex; flex-direction: column; gap: 2px; }
-.day-heading { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600; padding: 14px 0 6px; display: flex; align-items: center; gap: 6px; justify-content: flex-start; cursor: pointer; border-radius: 6px; }
-.day-heading:hover, .day-heading:focus-visible { color: var(--fg, var(--muted)); outline: none; }
-.day-heading .day-total { margin-left: auto; }
-.day-chevron { font-size: 0.65rem; width: 1em; flex-shrink: 0; }
-.day-heading:first-child { padding-top: 0; }
+.day-group { border-radius: 12px; margin: 0 -8px; }
+.day-group + .day-group { margin-top: 2px; }
+.day-group[data-open="true"] { background: var(--surface-2); padding-bottom: 4px; }
+.day-heading {
+  font-size: 0.82rem; font-weight: 600; color: var(--ink);
+  padding: 12px 8px; display: flex; align-items: center; gap: 8px;
+  cursor: pointer; border-radius: 12px;
+}
+.day-group[data-open="true"] .day-heading { padding-bottom: 6px; }
+.day-heading:hover, .day-heading:focus-visible { background: var(--surface-2); outline: none; }
+.day-group[data-open="true"] .day-heading:hover { background: transparent; }
+.day-heading .day-total { margin-left: auto; color: var(--muted); font-weight: 500; font-size: 0.85rem; }
+.day-chevron {
+  font-size: 0.7rem; width: 1em; flex-shrink: 0; color: var(--muted);
+  display: inline-block; transition: transform 0.15s ease;
+  transform: rotate(0deg);
+}
+.day-group[data-open="true"] .day-chevron { transform: rotate(90deg); }
 .day-total { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
 
-.txn { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.txn { display: flex; align-items: center; gap: 12px; padding: 9px 8px 9px 30px; border-top: 1px solid var(--line); }
 .day-group .txn:first-of-type { border-top: none; }
 .txn-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
 .txn-main { flex: 1; min-width: 0; }
@@ -122,8 +136,15 @@ section.card { background: var(--surface); border-radius: var(--radius); box-sha
 .txn-del {
   all: unset; cursor: pointer; color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 4px 6px; border-radius: 6px; flex-shrink: 0;
 }
-.txn-del:hover, .txn-del:focus-visible { color: var(--danger); background: var(--surface-2); }
+.txn-del:hover, .txn-del:focus-visible { color: var(--danger); background: var(--surface); }
 .txn-del:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.show-more-btn {
+  all: unset; box-sizing: border-box; width: 100%; text-align: center; cursor: pointer;
+  margin-top: 12px; padding: 11px 0; border-radius: 12px; border: 1px dashed var(--line);
+  color: var(--muted); font-size: 0.82rem; font-weight: 600;
+}
+.show-more-btn:hover, .show-more-btn:focus-visible { color: var(--accent); border-color: var(--accent); outline: none; }
 
 .sample-banner {
   background: var(--accent-soft); border-radius: 12px; padding: 10px 14px; font-size: 0.82rem; color: var(--ink);
