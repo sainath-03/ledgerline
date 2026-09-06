@@ -185,7 +185,8 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem
   .sheet { transition: transform 0.22s cubic-bezier(.32, .72, 0, 1); }
 }
 
-.suggestion-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.suggestion-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); cursor: pointer; border-radius: 8px; }
+.suggestion-row:hover, .suggestion-row:focus-visible { background: var(--surface-2); outline: none; }
 .suggestion-row:first-of-type { border-top: none; }
 .suggestion-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .suggestion-btn {

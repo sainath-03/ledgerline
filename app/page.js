@@ -70,6 +70,7 @@ function Tracker({ session }) {
   const [pending, setPending] = useState([]);
   const [scanning, setScanning] = useState(false);
   const [pendingBusyId, setPendingBusyId] = useState(null);
+  const [reviewingId, setReviewingId] = useState(null); // pending suggestion id being edited, or null for a plain new expense
 
   async function refresh() {
     try {
@@ -133,19 +134,24 @@ function Tracker({ session }) {
     await fetch("/api/gmail/status", { method: "DELETE" });
   }
 
-  async function respondToPending(id, action) {
+  async function dismissPending(id) {
     setPendingBusyId(id);
     try {
       await fetch(`/api/gmail/pending/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action })
+        body: JSON.stringify({ action: "dismiss" })
       });
       setPending((prev) => prev.filter((p) => p.id !== id));
-      if (action === "approve") refresh();
     } finally {
       setPendingBusyId(null);
     }
+  }
+
+  function openReview(p) {
+    setReviewingId(p.id);
+    setForm({ amount: String(p.amount), cat: p.cat, note: p.note || "", date: p.date });
+    setSheetOpen(true);
   }
 
   const inView = useMemo(() => {
@@ -203,6 +209,7 @@ function Tracker({ session }) {
   }
 
   function openSheet() {
+    setReviewingId(null);
     setForm({ amount: "", cat: "food", note: "", date: todayStr() });
     setSheetOpen(true);
   }
@@ -212,15 +219,26 @@ function Tracker({ session }) {
     if (!amount || amount <= 0) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/expenses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, cat: form.cat, note: form.note, date: form.date })
-      });
+      const res = await fetch(
+        reviewingId ? `/api/gmail/pending/${reviewingId}` : "/api/expenses",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            reviewingId
+              ? { action: "approve", amount, cat: form.cat, note: form.note, date: form.date }
+              : { amount, cat: form.cat, note: form.note, date: form.date }
+          )
+        }
+      );
       if (!res.ok) throw new Error("Could not save expense");
+      if (reviewingId) {
+        setPending((prev) => prev.filter((p) => p.id !== reviewingId));
+      }
       const d = new Date(`${form.date}T00:00:00`);
       setView({ year: d.getFullYear(), month: d.getMonth() });
       setSheetOpen(false);
+      setReviewingId(null);
       refresh();
     } catch (e) {
       setError(e.message);
@@ -288,27 +306,26 @@ function Tracker({ session }) {
               const cat = CATEGORY_BY_ID[p.cat] || CATEGORY_BY_ID.other;
               const busy = pendingBusyId === p.id;
               return (
-                <div className="suggestion-row" key={p.id}>
+                <div
+                  className="suggestion-row"
+                  key={p.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openReview(p)}
+                  onKeyDown={(e) => { if (e.key === "Enter") openReview(p); }}
+                >
                   <span className="txn-dot" style={{ background: cat.color }} />
                   <span className="txn-main">
                     <span className="txn-note">{p.note || cat.name}</span>
-                    <div className="txn-cat">{cat.name} · {p.date}</div>
+                    <div className="txn-cat">{cat.name} · {p.date} · tap to review</div>
                   </span>
                   <span className="txn-amount">{fmt2(p.amount)}</span>
                   <div className="suggestion-actions">
                     <button
-                      className="suggestion-btn approve"
-                      disabled={busy}
-                      aria-label="Approve suggestion"
-                      onClick={() => respondToPending(p.id, "approve")}
-                    >
-                      &#10003;
-                    </button>
-                    <button
                       className="suggestion-btn dismiss"
                       disabled={busy}
                       aria-label="Dismiss suggestion"
-                      onClick={() => respondToPending(p.id, "dismiss")}
+                      onClick={(e) => { e.stopPropagation(); dismissPending(p.id); }}
                     >
                       &times;
                     </button>
@@ -393,7 +410,7 @@ function Tracker({ session }) {
         <div className="sheet-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setSheetOpen(false); }}>
           <div className="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
             <div className="sheet-handle" />
-            <h3 id="sheetTitle">Add expense</h3>
+            <h3 id="sheetTitle">{reviewingId ? "Review suggested expense" : "Add expense"}</h3>
             <label className="field">
               Amount (₹)
               <input
@@ -445,9 +462,9 @@ function Tracker({ session }) {
               />
             </label>
             <div className="sheet-actions">
-              <button className="btn ghost" onClick={() => setSheetOpen(false)}>Cancel</button>
+              <button className="btn ghost" onClick={() => { setSheetOpen(false); setReviewingId(null); }}>Cancel</button>
               <button className="btn primary" disabled={saving} onClick={saveExpense}>
-                {saving ? "Saving…" : "Save expense"}
+                {saving ? "Saving…" : reviewingId ? "Confirm expense" : "Save expense"}
               </button>
             </div>
           </div>
