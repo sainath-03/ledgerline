@@ -71,6 +71,7 @@ function Tracker({ session }) {
   const [scanning, setScanning] = useState(false);
   const [pendingBusyId, setPendingBusyId] = useState(null);
   const [reviewingId, setReviewingId] = useState(null); // pending suggestion id being edited, or null for a plain new expense
+  const [expandedDay, setExpandedDay] = useState(undefined); // undefined = not yet interacted -> defaults to the most recent day
 
   async function refresh() {
     try {
@@ -181,6 +182,13 @@ function Tracker({ session }) {
   const byDay = {};
   inView.forEach((t) => { (byDay[t.date] = byDay[t.date] || []).push(t); });
   const days = Object.keys(byDay).sort().reverse();
+
+  function toggleDay(day) {
+    setExpandedDay((current) => {
+      const effective = current === undefined ? days[0] : current;
+      return effective === day ? null : day;
+    });
+  }
 
   function shiftMonth(delta) {
     setView((v) => {
@@ -373,13 +381,22 @@ function Tracker({ session }) {
             const label = day === todayStr()
               ? "Today"
               : dt.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+            const isOpen = (expandedDay === undefined ? days[0] : expandedDay) === day;
             return (
-              <div className="day-group" key={day}>
-                <div className="day-heading">
+              <div className="day-group" key={day} data-open={isOpen}>
+                <div
+                  className="day-heading"
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isOpen}
+                  onClick={() => toggleDay(day)}
+                  onKeyDown={(e) => { if (e.key === "Enter") toggleDay(day); }}
+                >
+                  <span className="day-chevron">{isOpen ? "▾" : "▸"}</span>
                   <span>{label}</span>
                   <span className="day-total">{fmt(dayTotal)}</span>
                 </div>
-                {items.map((t) => {
+                {isOpen && items.map((t) => {
                   const cat = CATEGORY_BY_ID[t.cat] || CATEGORY_BY_ID.other;
                   return (
                     <div className="txn" key={t.id}>
