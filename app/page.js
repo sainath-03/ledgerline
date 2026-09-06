@@ -9,6 +9,12 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December"
 ];
 
+// Requesting this extra scope (beyond the base sign-in scope) is what
+// lets the server read transaction emails on the user's behalf later,
+// without them being present. prompt=consent forces Google to hand
+// back a refresh_token every time, which is what makes that possible.
+const GMAIL_SCOPE = "openid email profile https://www.googleapis.com/auth/gmail.readonly";
+
 function pad(n) { return n < 10 ? `0${n}` : `${n}`; }
 function todayStr() {
   const d = new Date();
@@ -60,6 +66,11 @@ function Tracker({ session }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ amount: "", cat: "food", note: "", date: todayStr() });
 
+  const [gmailConnected, setGmailConnected] = useState(null); // null = not checked yet
+  const [pending, setPending] = useState([]);
+  const [scanning, setScanning] = useState(false);
+  const [pendingBusyId, setPendingBusyId] = useState(null);
+
   async function refresh() {
     try {
       setError(null);
@@ -74,7 +85,68 @@ function Tracker({ session }) {
     }
   }
 
-  useEffect(() => { refresh(); }, []);
+  async function loadPending() {
+    try {
+      const res = await fetch("/api/gmail/pending", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setPending(data.pending);
+    } catch (e) {
+      // Non-critical — the review list just won't update this time.
+    }
+  }
+
+  async function checkGmailAndScan() {
+    try {
+      const res = await fetch("/api/gmail/status", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setGmailConnected(data.connected);
+      if (data.connected) {
+        setScanning(true);
+        await fetch("/api/gmail/scan", { cache: "no-store" });
+        await loadPending();
+      }
+    } catch (e) {
+      // Non-critical — the account row will just show "Connect Gmail" again.
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+    checkGmailAndScan();
+  }, []);
+
+  function connectGmail() {
+    signIn("google", { callbackUrl: window.location.href }, {
+      scope: GMAIL_SCOPE,
+      access_type: "offline",
+      prompt: "consent"
+    });
+  }
+
+  async function disconnectGmail() {
+    setGmailConnected(false);
+    setPending([]);
+    await fetch("/api/gmail/status", { method: "DELETE" });
+  }
+
+  async function respondToPending(id, action) {
+    setPendingBusyId(id);
+    try {
+      await fetch(`/api/gmail/pending/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action })
+      });
+      setPending((prev) => prev.filter((p) => p.id !== id));
+      if (action === "approve") refresh();
+    } finally {
+      setPendingBusyId(null);
+    }
+  }
 
   const inView = useMemo(() => {
     return expenses.filter((t) => {
@@ -171,6 +243,12 @@ function Tracker({ session }) {
       <div className="account-row">
         {session.user.image && <img className="account-avatar" src={session.user.image} alt="" />}
         <span className="account-name">{session.user.name || session.user.email}</span>
+        {gmailConnected === false && (
+          <button className="signout-link" onClick={connectGmail}>Connect Gmail</button>
+        )}
+        {gmailConnected === true && (
+          <button className="signout-link" onClick={disconnectGmail}>Gmail connected ✓</button>
+        )}
         <button className="signout-link" onClick={() => signOut()}>Sign out</button>
       </div>
 
@@ -186,11 +264,60 @@ function Tracker({ session }) {
       {loading && <p className="status-note">Loading your expenses…</p>}
       {error && <p className="status-note error">{error}</p>}
 
+      {gmailConnected === false && (
+        <div className="sample-banner">
+          <span>Connect Gmail so Ledgerline can suggest transactions from your payment emails automatically.</span>
+          <button onClick={connectGmail}>Connect</button>
+        </div>
+      )}
+
       {hasExample && (
         <div className="sample-banner">
           <span>These are example entries so you can see how it works.</span>
           <button onClick={clearExamples}>Clear &amp; start fresh</button>
         </div>
+      )}
+
+      {(scanning || pending.length > 0) && (
+        <section className="card">
+          <h2>Suggested from Gmail{scanning ? " · checking…" : ""}</h2>
+          {pending.length === 0 ? (
+            <p className="empty-note">No new transactions found.</p>
+          ) : (
+            pending.map((p) => {
+              const cat = CATEGORY_BY_ID[p.cat] || CATEGORY_BY_ID.other;
+              const busy = pendingBusyId === p.id;
+              return (
+                <div className="suggestion-row" key={p.id}>
+                  <span className="txn-dot" style={{ background: cat.color }} />
+                  <span className="txn-main">
+                    <span className="txn-note">{p.note || cat.name}</span>
+                    <div className="txn-cat">{cat.name} · {p.date}</div>
+                  </span>
+                  <span className="txn-amount">{fmt2(p.amount)}</span>
+                  <div className="suggestion-actions">
+                    <button
+                      className="suggestion-btn approve"
+                      disabled={busy}
+                      aria-label="Approve suggestion"
+                      onClick={() => respondToPending(p.id, "approve")}
+                    >
+                      &#10003;
+                    </button>
+                    <button
+                      className="suggestion-btn dismiss"
+                      disabled={busy}
+                      aria-label="Dismiss suggestion"
+                      onClick={() => respondToPending(p.id, "dismiss")}
+                    >
+                      &times;
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </section>
       )}
 
       <section className="card">

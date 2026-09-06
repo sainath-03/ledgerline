@@ -184,3 +184,15 @@ label.field { display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem
 @media (prefers-reduced-motion: no-preference) {
   .sheet { transition: transform 0.22s cubic-bezier(.32, .72, 0, 1); }
 }
+
+.suggestion-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.suggestion-row:first-of-type { border-top: none; }
+.suggestion-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.suggestion-btn {
+  all: unset; cursor: pointer; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 1rem; font-weight: 700;
+}
+.suggestion-btn.approve { background: var(--accent-soft); color: var(--accent); }
+.suggestion-btn.dismiss { background: var(--surface-2); color: var(--muted); }
+.suggestion-btn:disabled { opacity: 0.5; cursor: default; }
+.suggestion-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
